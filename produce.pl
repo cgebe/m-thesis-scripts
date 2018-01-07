@@ -6,26 +6,21 @@
 # Modified:
 # V1.01 15/05/2006 Camelia Ignat - take in account a little changement of input format (no more linkGrp)
 # V1.02  13/07/2007 Camelia Ignat - add more documentation, add again linkGrp tag, deal with "/" character in celex code...
-# 
+#
 
 our $VERSION=1.02;
 
 
 use strict; use warnings;
 
-use Getopt::Long; # to read command line options
 my %options=(
-	     'acquisDir' => '.',
+	     'acquisDir' => 'acquis/*',
+         'alignDir' => 'align/*',
 	     'outDir' => '',
-	     'selectionList' => '',
 	    );
-
-die "usage: $0  [-acquisDir Directory] [-selectionList FileNameForCelexCodes] [-outDir OutputDirectory] AlignmentFile(s)" 
-  unless (GetOptions (\%options,'acquisDir=s','outDir=s','selectionList=s') and (scalar @ARGV));
 
 binmode(STDOUT,"utf8");
 binmode(STDIN,"utf8");
-
 
 # Initialisations
 
@@ -35,7 +30,34 @@ my %celexCodes;
 my $select=0;
 my $sizesel=0;
 
-if(($options{selectionList} ne "") && (-f $options{selectionList})){
+my @acquis = <$options{acquisDir}>;
+my @aligns = <$options{alignDir}>;
+foreach my $alignFile (@aligns) {
+  my @names = split(/\./, $alignFile);
+  my @trans = split('-', $names[0]); # get language pair
+  my $langDir1 = $options{acquisDir} . "/" . $trans[0];
+  my $langDir2 = $options{acquisDir} . "/" . $trans[1];
+
+  open(my $fcelexList, "<:encoding(utf8)", $alignFile) || die "Problems opening file $alignFile: $!\n";
+  while(my $line = <$fcelexList>){
+    chomp $line;
+    if($line =~ /^[\s]*$/){
+      next;
+    }
+    if($line =~ /^#/){
+      next;
+    }
+    my ($celex, $rest) = split(/[\s]+/, $line, 2);
+
+    $celexCodes{$celex}=1;
+    $sizesel++;
+  }
+  close($fcelexList);
+
+  # outputAlignedCorpusFromFile($langDir1, $langDir2, $alignFile)
+}
+
+if(($options{alignDir} ne "") && (-f $options{alignDir})){
   $select=1;
   open(my $fcelexList, "<:encoding(utf8)", $options{selectionList}) || die "Problems opening file $options{selectionList}: $!\n";
   while(my $line = <$fcelexList>){
@@ -55,14 +77,14 @@ if(($options{selectionList} ne "") && (-f $options{selectionList})){
 }
 
 foreach my $file (@ARGV) { # allows for several alignment text files
-  outputAlignedCorpusFromFile($file);
+  # outputAlignedCorpusFromFile($file);
 }
 
 sub outputAlignedCorpusFromFile{
     my($file) = @_;
 
-    open(my $Fal, "<:encoding(utf8)",$file) || die "pb reading alignment file $file:$!";    
-    
+    open(my $Fal, "<:encoding(utf8)",$file) || die "pb reading alignment file $file:$!";
+
     my $docid1="";
     my $docid2="";
     my $celexid="";
@@ -84,17 +106,17 @@ sub outputAlignedCorpusFromFile{
     else{
       $Fout=*STDOUT;
     }
-    
+
     my $writeDoc=1;
     while (my $line = <$Fal>) {
-      
-      unless(($line =~ /^[\s]*<link/) || ($line =~ /^[\s]*<linkGrp/) || ($line =~ /^[\s]*<div type=\"body\"/)){ 
+
+      unless(($line =~ /^[\s]*<link/) || ($line =~ /^[\s]*<linkGrp/) || ($line =~ /^[\s]*<div type=\"body\"/)){
 	if($writeDoc eq 1){
 	  if(($select eq 1)&&($line =~ /<extent>/)){
 	    $line =~ s/<extent>/<extent>Selection of maximum $sizesel documents from: /;
 	  }
 	  print $Fout $line;
-	  
+
 	}
 	elsif($line =~ /<\/div>/){
 	  $writeDoc=1;
@@ -130,7 +152,7 @@ sub outputAlignedCorpusFromFile{
 	next;
       }
       if($line =~ /^[\s]*<linkGrp/){
-	
+
 #	if($line =~ /xtargets=\"([^\";]+);([^\";]+)\"/){
 #	  $docid1=$1;
 #	  $docid2=$2;
@@ -145,7 +167,7 @@ sub outputAlignedCorpusFromFile{
 	print $Fout $line,"\n";
 	next;
       }
-      
+
       if($line =~ /^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/){
 	my $type=$1;
 	my $targets1=$2;
@@ -154,7 +176,7 @@ sub outputAlignedCorpusFromFile{
 	$targets1 =~ s/[\s]+$//;
 	$targets2 =~ s/^[\s]+//;
 	$targets2 =~ s/[\s]+$//;
-	
+
 	if($celexid eq ""){
 	#  print $Fout $line,"\n";
 	}
@@ -203,7 +225,7 @@ sub addTextLanguage{
 
 sub getTextInfoFromXmlFile {
     my($lg,$celexid, $docid) = @_;
-  
+
     my $txtInfo={};
     my $year="";
     if($celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/){
@@ -214,16 +236,16 @@ sub getTextInfoFromXmlFile {
     my $fileName=$options{acquisDir}."/".$lg."/".$year."/".$docid.".xml";
     # print "Opening file...",$fileName,"\n";
   #  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
-	      
+
   open(my $F, "<:encoding(utf8)", $fileName) || die "Problems opening file $fileName: $!\n";
     while (my $line = <$F>) {
      # print "LINE:",$line;
       if($line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i) {
 #	print  $1,"\t", $2,"\n";
 	$txtInfo->{s}->[$1]=$2;
-      } 
+      }
     }
-    close $F;    
+    close $F;
    return $txtInfo;
 }
 
@@ -248,13 +270,13 @@ getAlignmentWithText.pl - program that add the text to the alignment files.
   To process more files use an output folder as following:
   perl getAlignmentWithText.pl  -acquisDir "JRC-Acquis_corpus_folder"  -selectionList "file_withCelexCode" -outDir "Output_folder"  jrc-bg-cs.xml  jrc-en-it.xml
 
- 
+
 =head1 DESCRIPTION
 
 To get the aligned corpora for a language pair, the program need as input the corpora by language and the alignment information. The corpora will be provided by the option "acquisDir" that will specify where the Acquis corpus is located. If the option is not specified the default value is the current directory.
 The alignment information will be provided as argument.
 
-Using the option "selectionList" you can provided a list of Celex codes that has to be processed and the programm will output only the files that has the Celex code specified in the list. The codes are given in a file - one celex code by line. This option could be useful if you want to process only documents that have Eurovoc descriptors. 
+Using the option "selectionList" you can provided a list of Celex codes that has to be processed and the programm will output only the files that has the Celex code specified in the list. The codes are given in a file - one celex code by line. This option could be useful if you want to process only documents that have Eurovoc descriptors.
 
 The option "outDir" gives the possibility to process more than one language pair. You have to specify all the language pairs that you want to process as arguments and to give the output directory where the alignments with text will be written.
  The result files will have the name composed by the name of the input file (without extension) followed by "_withText", followed by the extension (i.e. jrc-en-fr_withText.xml)
@@ -317,5 +339,3 @@ camelia.ignat@jrc.it, bruno.pouliquen@jrc.it
 
 
 =cut
-
-
