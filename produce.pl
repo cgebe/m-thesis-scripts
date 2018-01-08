@@ -39,12 +39,8 @@ foreach my $alignFile (@aligns) {
   my $langDir2 = $options{acquisDir} . $trans[2];
   my $celexcode;
   my $prename;
-  my $year;
-  my $firstfile;
-  my $secondfile;
-
-  my %paragraphsFirst;
-  my %paragraphsSecond;
+  my $docid1;
+  my $docid2;
   open(my $fcelexList, "<:encoding(utf8)", $alignFile) || die "Problems opening file $alignFile: $!\n";
   while(my $line = <$fcelexList>){
     chomp $line;
@@ -66,36 +62,56 @@ foreach my $alignFile (@aligns) {
             } else {
                 $prename = "jrc" . $rm[0];
             }
-            $year = substr($celex[1], 1, 4);
-            $firstfile = $langDir1 . "/" . $year . "/" . $prename . "-" . $trans[1] . ".xml";
-            $secondfile = $langDir2 . "/" . $year . "/" . $prename . "-" . $trans[2] . ".xml";
-            #%paragraphsFirst = loadParagraphs($firstfile);
-            #%paragraphsSecond = loadParagraphs($secondfile);
+            $docid1 = $prename . "-" . $trans[1];
+            $docid2 = $prename . "-" . $trans[2];
+            $text{$trans[1]} = &loadParagraphs($trans[1], $celex[1], $docid1);
+            print $text{$trans[1]};
+            #$text{$trans[2]} = &loadParagraphs($trans[2], $celex[1], $docid2);
         } else {
             die "wrong type for linkgrp $alignFile";
         }
     }
 
     if ($link[0] eq "<link") {
-        switch ($link[1]) {
-            case "type=\"0:1\"" { next; }
-            case "type=\"1:0\"" { next; }
-            case "type=\"1:1\"" {
 
-            }
-        }
+        #switch ($link[1]) {
+            #case "type=\"0:1\"" { next; }
+            #case "type=\"1:0\"" { next; }
+            #case "type=\"1:1\"" {
+
+            #}
+        #}
     }
 
   }
   close($fcelexList);
-
-  # outputAlignedCorpusFromFile($langDir1, $langDir2, $alignFile)
 }
 
 sub loadParagraphs
 {
-    open(my $file, "<:encoding(utf8)", $_[0]) || die "pb reading acquis file $file:$!";
-    my %paragraphs = ();
+    my($lg,$celexid, $docid) = @_;
+
+    my $txtInfo={};
+    my $year="";
+    if($celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/){
+      $year=$1;
+    }
+    $txtInfo->{celex}=$celexid;
+    $txtInfo->{s} = [];
+    my $fileName = $options{acquisDir}."/".$lg."/".$year."/".$docid.".xml";
+    # print "Opening file...",$fileName,"\n";
+  #  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
+
+  open(my $F, "<:encoding(utf8)", $fileName) || die "Problems opening file $fileName: $!\n";
+    while (my $line = <$F>) {
+     # print "LINE:",$line;
+      if($line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i) {
+#	print  $1,"\t", $2,"\n";
+	$txtInfo->{s}->[$1]=$2;
+      }
+    }
+    close $F;
+   return $txtInfo;
 }
 
 if(($options{alignDir} ne "") && (-f $options{alignDir})){
