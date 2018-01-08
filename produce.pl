@@ -37,7 +37,7 @@ foreach my $alignFile (@aligns) {
   my @trans = split('-', $names[0]); # get language pair
   my $langDir1 = $options{acquisDir} . "/" . $trans[0];
   my $langDir2 = $options{acquisDir} . "/" . $trans[1];
-
+  my $celexcode;
   open(my $fcelexList, "<:encoding(utf8)", $alignFile) || die "Problems opening file $alignFile: $!\n";
   while(my $line = <$fcelexList>){
     chomp $line;
@@ -47,10 +47,19 @@ foreach my $alignFile (@aligns) {
     if($line =~ /^#/){
       next;
     }
-    my ($celex, $rest) = split(/[\s]+/, $line, 2);
+    my @link = split(/[\s]+/, $line);
 
-    $celexCodes{$celex}=1;
-    $sizesel++;
+    # get celex code
+    if ($link[0] eq "<linkGrp") {
+        if (beginsWith($link[3], "n=")) {
+            my @celex = split(/"/, $link[3]);
+            $celexcode = $celex[1];
+            print "$celexcode" . "\n";
+        } else {
+            die "wrong type for linkgrp $alignFile";
+        }
+    }
+
   }
   close($fcelexList);
 
@@ -247,6 +256,11 @@ sub getTextInfoFromXmlFile {
     }
     close $F;
    return $txtInfo;
+}
+
+sub beginsWith
+{
+    return substr($_[0], 0, length($_[1])) eq $_[1]
 }
 
 
