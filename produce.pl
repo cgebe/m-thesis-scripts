@@ -14,7 +14,7 @@ our $VERSION=1.02;
 use strict; use warnings;
 
 my %options=(
-	     'acquisDir' => 'acquis/*',
+	     'acquisDir' => 'acquis/',
          'alignDir' => 'align/*',
 	     'outDir' => '',
 	    );
@@ -35,9 +35,16 @@ my @aligns = <$options{alignDir}>;
 foreach my $alignFile (@aligns) {
   my @names = split(/\./, $alignFile);
   my @trans = split('-', $names[0]); # get language pair
-  my $langDir1 = $options{acquisDir} . "/" . $trans[0];
-  my $langDir2 = $options{acquisDir} . "/" . $trans[1];
+  my $langDir1 = $options{acquisDir} . $trans[1];
+  my $langDir2 = $options{acquisDir} . $trans[2];
   my $celexcode;
+  my $prename;
+  my $year;
+  my $firstfile;
+  my $secondfile;
+
+  my %paragraphsFirst;
+  my %paragraphsSecond;
   open(my $fcelexList, "<:encoding(utf8)", $alignFile) || die "Problems opening file $alignFile: $!\n";
   while(my $line = <$fcelexList>){
     chomp $line;
@@ -53,10 +60,29 @@ foreach my $alignFile (@aligns) {
     if ($link[0] eq "<linkGrp") {
         if (beginsWith($link[3], "n=")) {
             my @celex = split(/"/, $link[3]);
-            $celexcode = $celex[1];
-            print "$celexcode" . "\n";
+            my @rm = split(/[\(\)]/, $celex[1]);
+            if (scalar @rm > 1) {
+                $prename = "jrc" . $rm[0] . "_" . $rm[1];
+            } else {
+                $prename = "jrc" . $rm[0];
+            }
+            $year = substr($celex[1], 1, 4);
+            $firstfile = $langDir1 . "/" . $year . "/" . $prename . "-" . $trans[1] . ".xml";
+            $secondfile = $langDir2 . "/" . $year . "/" . $prename . "-" . $trans[2] . ".xml";
+            #%paragraphsFirst = loadParagraphs($firstfile);
+            #%paragraphsSecond = loadParagraphs($secondfile);
         } else {
             die "wrong type for linkgrp $alignFile";
+        }
+    }
+
+    if ($link[0] eq "<link") {
+        switch ($link[1]) {
+            case "type=\"0:1\"" { next; }
+            case "type=\"1:0\"" { next; }
+            case "type=\"1:1\"" {
+
+            }
         }
     }
 
@@ -64,6 +90,12 @@ foreach my $alignFile (@aligns) {
   close($fcelexList);
 
   # outputAlignedCorpusFromFile($langDir1, $langDir2, $alignFile)
+}
+
+sub loadParagraphs
+{
+    open(my $file, "<:encoding(utf8)", $_[0]) || die "pb reading acquis file $file:$!";
+    my %paragraphs = ();
 }
 
 if(($options{alignDir} ne "") && (-f $options{alignDir})){
