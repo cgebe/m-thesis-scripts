@@ -8,207 +8,279 @@
 # V1.02  13/07/2007 Camelia Ignat - add more documentation, add again linkGrp tag, deal with "/" character in celex code...
 #
 
-our $VERSION=1.02;
+our $VERSION = 1.02;
 
+use strict;
+use warnings;
 
-use strict; use warnings;
+my %options = (
+    'acquisDir' => 'acquis/',
+    'alignDir'  => 'align/*',
+    'outDir'    => 'out/',
+);
 
-my %options=(
-	     'acquisDir' => 'acquis/',
-         'alignDir' => 'align/*',
-	     'outDir' => '',
-	    );
-
-binmode(STDOUT,"utf8");
-binmode(STDIN,"utf8");
+binmode( STDOUT, "utf8" );
+binmode( STDIN,  "utf8" );
 
 # Initialisations
 
-my %text=();
+my %text = ();
 
 my %celexCodes;
-my $select=0;
-my $sizesel=0;
+my $select  = 0;
+my $sizesel = 0;
 
 my @acquis = <$options{acquisDir}>;
 my @aligns = <$options{alignDir}>;
-foreach my $alignFile (@aligns) {
-  my @names = split(/\./, $alignFile);
-  my @trans = split('-', $names[0]); # get language pair
-  my $langDir1 = $options{acquisDir} . $trans[1];
-  my $langDir2 = $options{acquisDir} . $trans[2];
-  my $celexcode;
-  my $prename;
-  my $docid1;
-  my $docid2;
-  open(my $fcelexList, "<:encoding(utf8)", $alignFile) || die "Problems opening file $alignFile: $!\n";
-  while(my $line = <$fcelexList>){
-    chomp $line;
-    if($line =~ /^[\s]*$/){
-      next;
-    }
-    if($line =~ /^#/){
-      next;
-    }
-    my @link = split(/[\s]+/, $line);
 
-    # get celex code
-    if ($link[0] eq "<linkGrp") {
-        if (beginsWith($link[3], "n=")) {
-            my @celex = split(/"/, $link[3]);
-            my @rm = split(/[\(\)]/, $celex[1]);
-            if (scalar @rm > 1) {
-                $prename = "jrc" . $rm[0] . "_" . $rm[1];
-            } else {
-                $prename = "jrc" . $rm[0];
+# iterate alignment files
+foreach my $alignFile (@aligns) {
+    my @names = split( /\./, $alignFile );
+    my @trans = split( '-',  $names[0] );    # get language pair
+    my $langDir1 = $options{acquisDir} . $trans[1];
+    my $langDir2 = $options{acquisDir} . $trans[2];
+    my $celexcode;
+    my $prename;
+    my $docid1;
+    my $docid2;
+    my $outFilelg1 =
+        $options{'outDir'}
+      . "/JRC-Acquis."
+      . $trans[1] . "-"
+      . $trans[2] . "."
+      . $trans[1];
+    my $outFilelg2 =
+        $options{'outDir'}
+      . "/JRC-Acquis."
+      . $trans[1] . "-"
+      . $trans[2] . "."
+      . $trans[2];
+    my $Foutlg1;
+    my $Foutlg2;
+    my $docamount = 0;
+
+    # print state
+    print "writing JRC-Acquis " . $trans[1] . "-" . $trans[2] . "\n";
+
+    # open out files
+    open( $Foutlg1, ">:encoding(utf8)", $outFilelg1 )
+      || die "Cannot open the output file $outFilelg1:$!\n";
+    open( $Foutlg2, ">:encoding(utf8)", $outFilelg2 )
+      || die "Cannot open the output file $outFilelg2:$!\n";
+
+    # open alignment file
+    open( my $fcelexList, "<:encoding(utf8)", $alignFile )
+      || die "Problems opening file $alignFile: $!\n";
+
+    # iterate alignment file lines
+    while ( my $line = <$fcelexList> ) {
+        chomp $line;
+        if ( $line =~ /^[\s]*$/ ) {
+            next;
+        }
+        if ( $line =~ /^#/ ) {
+            next;
+        }
+        my @link = split( /[\s]+/, $line );
+
+        # get celex code
+        if ( $link[0] eq "<linkGrp" ) {
+            if ( beginsWith( $link[3], "n=" ) ) {
+                my @celex = split( /"/, $link[3] );
+                $prename = "jrc" . $celex[1];
+                $prename =~
+                  s/[\(]/_/g;    # replace opening bracket with underscore
+                $prename =~ s/[\)]//g;    # remove closing bracket
+                $docid1 = $prename . "-" . $trans[1];
+                $docid2 = $prename . "-" . $trans[2];
+                $text{ $trans[1] } =
+                  &loadParagraphs( $trans[1], $celex[1], $docid1 );
+                $text{ $trans[2] } =
+                  &loadParagraphs( $trans[2], $celex[1], $docid2 );
+                $docamount++;
             }
-            $docid1 = $prename . "-" . $trans[1];
-            $docid2 = $prename . "-" . $trans[2];
-            $text{$trans[1]} = &loadParagraphs($trans[1], $celex[1], $docid1);
-            print $text{$trans[1]};
-            #$text{$trans[2]} = &loadParagraphs($trans[2], $celex[1], $docid2);
-        } else {
-            die "wrong type for linkgrp $alignFile";
+            else {
+                die "wrong type for linkgrp $alignFile";
+            }
+        }
+
+        # output lang files
+        if ( $line =~
+/^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/
+          )
+        {
+            my $type     = $1;
+            my $targets1 = $2;
+            my $targets2 = $3;
+            $targets1 =~ s/^[\s]+//;
+            $targets1 =~ s/[\s]+$//;
+            $targets2 =~ s/^[\s]+//;
+            $targets2 =~ s/[\s]+$//;
+
+            print $Foutlg1 &getSentence( $trans[1], $targets1 ) . "\n";
+            print $Foutlg2 &getSentence( $trans[2], $targets2 ) . "\n";
         }
     }
 
-    if ($link[0] eq "<link") {
+    # close all files when one alignment file finished
+    close($fcelexList);
+    close($Foutlg1);
+    close($Foutlg2);
 
-        #switch ($link[1]) {
-            #case "type=\"0:1\"" { next; }
-            #case "type=\"1:0\"" { next; }
-            #case "type=\"1:1\"" {
-
-            #}
-        #}
-    }
-
-  }
-  close($fcelexList);
+    print "documents aligned: " . $docamount . "\n";
 }
 
-sub loadParagraphs
-{
-    my($lg,$celexid, $docid) = @_;
+sub loadParagraphs {
+    my ( $lg, $celexid, $docid ) = @_;
 
-    my $txtInfo={};
-    my $year="";
-    if($celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/){
-      $year=$1;
+    my $txtInfo = {};
+    my $year    = "";
+    if ( $celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/ ) {
+        $year = $1;
     }
-    $txtInfo->{celex}=$celexid;
-    $txtInfo->{s} = [];
-    my $fileName = $options{acquisDir}."/".$lg."/".$year."/".$docid.".xml";
-    # print "Opening file...",$fileName,"\n";
-  #  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
+    $txtInfo->{celex} = $celexid;
+    $txtInfo->{s}     = [];
+    my $fileName =
+      $options{acquisDir} . $lg . "/" . $year . "/" . $docid . ".xml";
 
-  open(my $F, "<:encoding(utf8)", $fileName) || die "Problems opening file $fileName: $!\n";
-    while (my $line = <$F>) {
-     # print "LINE:",$line;
-      if($line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i) {
-#	print  $1,"\t", $2,"\n";
-	$txtInfo->{s}->[$1]=$2;
-      }
+# print "Opening file...",$fileName,"\n";
+#  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
+
+    open( my $F, "<:encoding(utf8)", $fileName )
+      || die "Problems opening file $fileName: $!\n";
+    while ( my $line = <$F> ) {
+
+        # print "LINE:",$line;
+        if ( $line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i ) {
+
+            #	print  $1,"\t", $2,"\n";
+            $txtInfo->{s}->[$1] = $2;
+        }
     }
     close $F;
-   return $txtInfo;
+    return $txtInfo;
 }
 
-if(($options{alignDir} ne "") && (-f $options{alignDir})){
-  $select=1;
-  open(my $fcelexList, "<:encoding(utf8)", $options{selectionList}) || die "Problems opening file $options{selectionList}: $!\n";
-  while(my $line = <$fcelexList>){
-    chomp $line;
-    if($line =~ /^[\s]*$/){
-      next;
+sub getSentence {
+    my ( $lg, $targets1 ) = @_;
+    my $line = "";
+    my @targets1 = split( /[\s]+/, $targets1 );
+
+    # discard insert or deletetion
+    if ( scalar @targets1 > 0 ) {
+        foreach my $t (@targets1) {
+            $line .= $text{$lg}->{s}->[$t] . " ";
+        }
+        $line =~ s/[\s]+$//;
     }
-    if($line =~ /^#/){
-      next;
+    return $line;
+}
+
+if ( ( $options{alignDir} ne "" ) && ( -f $options{alignDir} ) ) {
+    $select = 1;
+    open( my $fcelexList, "<:encoding(utf8)", $options{selectionList} )
+      || die "Problems opening file $options{selectionList}: $!\n";
+    while ( my $line = <$fcelexList> ) {
+        chomp $line;
+        if ( $line =~ /^[\s]*$/ ) {
+            next;
+        }
+        if ( $line =~ /^#/ ) {
+            next;
+        }
+        my ( $celex, $rest ) = split( /[\s]+/, $line, 2 );
+
+        # print STDERR "Celex codes: ",$celex,"\n";
+        $celexCodes{$celex} = 1;
+        $sizesel++;
     }
-    my ($celex, $rest) = split(/[\s]+/,$line,2);
-   # print STDERR "Celex codes: ",$celex,"\n";
-    $celexCodes{$celex}=1;
-    $sizesel++;
-  }
-  close($fcelexList);
+    close($fcelexList);
 }
 
-foreach my $file (@ARGV) { # allows for several alignment text files
-  # outputAlignedCorpusFromFile($file);
+foreach my $file (@ARGV) {    # allows for several alignment text files
+                              # outputAlignedCorpusFromFile($file);
 }
 
-sub outputAlignedCorpusFromFile{
-    my($file) = @_;
+sub outputAlignedCorpusFromFile {
+    my ($file) = @_;
 
-    open(my $Fal, "<:encoding(utf8)",$file) || die "pb reading alignment file $file:$!";
+    open( my $Fal, "<:encoding(utf8)", $file )
+      || die "pb reading alignment file $file:$!";
 
-    my $docid1="";
-    my $docid2="";
-    my $celexid="";
-    my $lg1="";
-    my $lg2="";
+    my $docid1  = "";
+    my $docid2  = "";
+    my $celexid = "";
+    my $lg1     = "";
+    my $lg2     = "";
 
     my $Fout;
-    if($options{'outDir'} ne ""){
-      unless(-d $options{'outDir'}){
-	system("mkdir -p $options{'outDir'}");
-      }
-      $options{outDir} =~ s/\/$//;
-      my $outFile = $file;
-      $outFile =~ s/^.*\/([^\/]+)$/$1/;
-      $outFile =~ s/(.+)\.([^\.]+)/$1\_withText\.$2/;
-      $outFile = $options{'outDir'}."/".$outFile;
-      open($Fout,">:encoding(utf8)",$outFile) || die "Cannot open the output file $outFile:$!\n";
+    if ( $options{'outDir'} ne "" ) {
+        unless ( -d $options{'outDir'} ) {
+            system("mkdir -p $options{'outDir'}");
+        }
+        $options{outDir} =~ s/\/$//;
+        my $outFile = $file;
+        $outFile =~ s/^.*\/([^\/]+)$/$1/;
+        $outFile =~ s/(.+)\.([^\.]+)/$1\_withText\.$2/;
+        $outFile = $options{'outDir'} . "/" . $outFile;
+        open( $Fout, ">:encoding(utf8)", $outFile )
+          || die "Cannot open the output file $outFile:$!\n";
     }
-    else{
-      $Fout=*STDOUT;
+    else {
+        $Fout = *STDOUT;
     }
 
-    my $writeDoc=1;
-    while (my $line = <$Fal>) {
+    my $writeDoc = 1;
+    while ( my $line = <$Fal> ) {
 
-      unless(($line =~ /^[\s]*<link/) || ($line =~ /^[\s]*<linkGrp/) || ($line =~ /^[\s]*<div type=\"body\"/)){
-	if($writeDoc eq 1){
-	  if(($select eq 1)&&($line =~ /<extent>/)){
-	    $line =~ s/<extent>/<extent>Selection of maximum $sizesel documents from: /;
-	  }
-	  print $Fout $line;
+        unless ( ( $line =~ /^[\s]*<link/ )
+            || ( $line =~ /^[\s]*<linkGrp/ )
+            || ( $line =~ /^[\s]*<div type=\"body\"/ ) )
+        {
+            if ( $writeDoc eq 1 ) {
+                if ( ( $select eq 1 ) && ( $line =~ /<extent>/ ) ) {
+                    $line =~
+s/<extent>/<extent>Selection of maximum $sizesel documents from: /;
+                }
+                print $Fout $line;
 
-	}
-	elsif($line =~ /<\/div>/){
-	  $writeDoc=1;
-	}
-	next;
-      }
-      chomp($line);
-      if($line =~ /^[\s]*<div type=\"body\" n=\"([^\"]+)\"/){
-	$celexid=$1;
-	if(($select eq 1) && (not exists $celexCodes{$celexid})){
-	  $celexid="";
-	  $writeDoc=0;
-	}
-	else{
-	  $writeDoc=1;
-	  if($line =~ /select=\"([a-z][a-z])\s+([a-z][a-z])\"/){
-	    $lg1=$1;
-	    $lg2=$2;
-	  }
-	  my $id=$celexid;
-	  $id =~ s/\(/_/g;
-	  $id =~ s/\)//g;
-	  $id =~ s/\//\#/g;
-	  $docid1="jrc".$id."-".$lg1;
-	  $docid2="jrc".$id."-".$lg2;
-	  $text{$lg1} = &getTextInfoFromXmlFile($lg1,$celexid, $docid1);
-	  $text{$lg2} = &getTextInfoFromXmlFile($lg2,$celexid, $docid2);
-	  print $Fout $line,"\n";
-	}
-	next;
-      }
-      if($writeDoc eq 0){
-	next;
-      }
-      if($line =~ /^[\s]*<linkGrp/){
+            }
+            elsif ( $line =~ /<\/div>/ ) {
+                $writeDoc = 1;
+            }
+            next;
+        }
+        chomp($line);
+        if ( $line =~ /^[\s]*<div type=\"body\" n=\"([^\"]+)\"/ ) {
+            $celexid = $1;
+            if ( ( $select eq 1 ) && ( not exists $celexCodes{$celexid} ) ) {
+                $celexid  = "";
+                $writeDoc = 0;
+            }
+            else {
+                $writeDoc = 1;
+                if ( $line =~ /select=\"([a-z][a-z])\s+([a-z][a-z])\"/ ) {
+                    $lg1 = $1;
+                    $lg2 = $2;
+                }
+                my $id = $celexid;
+                $id =~ s/\(/_/g;
+                $id =~ s/\)//g;
+                $id =~ s/\//\#/g;
+                $docid1 = "jrc" . $id . "-" . $lg1;
+                $docid2 = "jrc" . $id . "-" . $lg2;
+                $text{$lg1} =
+                  &getTextInfoFromXmlFile( $lg1, $celexid, $docid1 );
+                $text{$lg2} =
+                  &getTextInfoFromXmlFile( $lg2, $celexid, $docid2 );
+                print $Fout $line, "\n";
+            }
+            next;
+        }
+        if ( $writeDoc eq 0 ) {
+            next;
+        }
+        if ( $line =~ /^[\s]*<linkGrp/ ) {
 
 #	if($line =~ /xtargets=\"([^\";]+);([^\";]+)\"/){
 #	  $docid1=$1;
@@ -221,96 +293,100 @@ sub outputAlignedCorpusFromFile{
 #	# print "TEST:",$docid1, "\t",$docid2,"\t", $celexid, "\t", $lg1, "\t", $lg2, "\n";
 #	$text{$lg1} = &getTextInfoFromXmlFile($lg1,$celexid, $docid1);
 #	$text{$lg2} = &getTextInfoFromXmlFile($lg2,$celexid, $docid2);
-	print $Fout $line,"\n";
-	next;
-      }
+            print $Fout $line, "\n";
+            next;
+        }
 
-      if($line =~ /^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/){
-	my $type=$1;
-	my $targets1=$2;
-	my $targets2=$3;
-	$targets1 =~ s/^[\s]+//;
-	$targets1 =~ s/[\s]+$//;
-	$targets2 =~ s/^[\s]+//;
-	$targets2 =~ s/[\s]+$//;
+        if ( $line =~
+/^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/
+          )
+        {
+            my $type     = $1;
+            my $targets1 = $2;
+            my $targets2 = $3;
+            $targets1 =~ s/^[\s]+//;
+            $targets1 =~ s/[\s]+$//;
+            $targets2 =~ s/^[\s]+//;
+            $targets2 =~ s/[\s]+$//;
 
-	if($celexid eq ""){
-	#  print $Fout $line,"\n";
-	}
-	else{
-	  $line =~ s/[\s]*\/>$/>/;
-	  print $Fout $line,"\n";
-	  print $Fout &addTextLanguage($lg1, $targets1, 1);
-	  print $Fout &addTextLanguage($lg2, $targets2, 2);
-	  print $Fout "<\/link>\n";
-	}
-	next;
-      }
+            if ( $celexid eq "" ) {
+
+                #  print $Fout $line,"\n";
+            }
+            else {
+                $line =~ s/[\s]*\/>$/>/;
+                print $Fout $line, "\n";
+                print $Fout &addTextLanguage( $lg1, $targets1, 1 );
+                print $Fout &addTextLanguage( $lg2, $targets2, 2 );
+                print $Fout "<\/link>\n";
+            }
+            next;
+        }
     }
-    if($options{'outDir'} ne ""){
-      close($Fout);
+    if ( $options{'outDir'} ne "" ) {
+        close($Fout);
     }
-  }
-
-
-
-sub addTextLanguage{
-  my ($lg, $targets1, $n)=@_;
-
-  my $string = "";
-  my @targets1 = split(/[\s]+/,$targets1);
-
-  if(scalar @targets1 > 0){
-    $string .= "<s$n>";
-    foreach my $t (@targets1){
-      if(scalar @targets1 > 1){
-	$string .= "<p>";
-      }
-      $string .= $text{$lg}->{s}->[$t];
-      if(scalar @targets1 > 1){
-	$string .= "</p>";
-      }
-    }
-    $string .= "<\/s$n>\n";
-  }
-  else{
-    $string .= "<s$n\/>\n";
-  }
-			      return $string;
 }
 
+sub addTextLanguage {
+    my ( $lg, $targets1, $n ) = @_;
+
+    my $string = "";
+    my @targets1 = split( /[\s]+/, $targets1 );
+
+    if ( scalar @targets1 > 0 ) {
+        $string .= "<s$n>";
+        foreach my $t (@targets1) {
+            if ( scalar @targets1 > 1 ) {
+                $string .= "<p>";
+            }
+            $string .= $text{$lg}->{s}->[$t];
+            if ( scalar @targets1 > 1 ) {
+                $string .= "</p>";
+            }
+        }
+        $string .= "<\/s$n>\n";
+    }
+    else {
+        $string .= "<s$n\/>\n";
+    }
+    return $string;
+}
 
 sub getTextInfoFromXmlFile {
-    my($lg,$celexid, $docid) = @_;
+    my ( $lg, $celexid, $docid ) = @_;
 
-    my $txtInfo={};
-    my $year="";
-    if($celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/){
-      $year=$1;
+    my $txtInfo = {};
+    my $year    = "";
+    if ( $celexid =~ /^[0-9A-Z]((19|20)[0-9][0-9])/ ) {
+        $year = $1;
     }
-    $txtInfo->{celex}=$celexid;
-    $txtInfo->{s} = [];
-    my $fileName=$options{acquisDir}."/".$lg."/".$year."/".$docid.".xml";
-    # print "Opening file...",$fileName,"\n";
-  #  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
+    $txtInfo->{celex} = $celexid;
+    $txtInfo->{s}     = [];
+    my $fileName =
+      $options{acquisDir} . "/" . $lg . "/" . $year . "/" . $docid . ".xml";
 
-  open(my $F, "<:encoding(utf8)", $fileName) || die "Problems opening file $fileName: $!\n";
-    while (my $line = <$F>) {
-     # print "LINE:",$line;
-      if($line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i) {
-#	print  $1,"\t", $2,"\n";
-	$txtInfo->{s}->[$1]=$2;
-      }
+# print "Opening file...",$fileName,"\n";
+#  open(my $F, "<:encoding(utf8)", $fileName) || do{warn "Error when reading $fileName: $!"; return();};
+
+    open( my $F, "<:encoding(utf8)", $fileName )
+      || die "Problems opening file $fileName: $!\n";
+    while ( my $line = <$F> ) {
+
+        # print "LINE:",$line;
+        if ( $line =~ /<p n=\"([^\"]+)\">((.|\n|\r)*)<\/p>/i ) {
+
+            #	print  $1,"\t", $2,"\n";
+            $txtInfo->{s}->[$1] = $2;
+        }
     }
     close $F;
-   return $txtInfo;
+    return $txtInfo;
 }
 
-sub beginsWith
-{
-    return substr($_[0], 0, length($_[1])) eq $_[1]
+sub beginsWith {
+    return substr( $_[0], 0, length( $_[1] ) ) eq $_[1];
 }
-
 
 __END__
 
