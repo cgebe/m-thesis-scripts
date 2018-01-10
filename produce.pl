@@ -40,7 +40,6 @@ foreach my $alignFile (@aligns) {
     my $langDir1 = $options{acquisDir} . $trans[1];
     my $langDir2 = $options{acquisDir} . $trans[2];
     my $celexcode;
-    my $prename;
     my $docid1;
     my $docid2;
     my $outFilelg1 =
@@ -83,31 +82,28 @@ foreach my $alignFile (@aligns) {
         }
         my @link = split( /[\s]+/, $line );
 
-        # get celex code
-        if ( $link[0] eq "<linkGrp" ) {
-            if ( beginsWith( $link[3], "n=" ) ) {
-                my @celex = split( /"/, $link[3] );
-                $prename = "jrc" . $celex[1];
-                $prename =~
-                  s/[\(]/_/g;    # replace opening bracket with underscore
-                $prename =~ s/[\)]//g;    # remove closing bracket
-                $docid1 = $prename . "-" . $trans[1];
-                $docid2 = $prename . "-" . $trans[2];
-                $text{ $trans[1] } =
-                  &loadParagraphs( $trans[1], $celex[1], $docid1 );
-                $text{ $trans[2] } =
-                  &loadParagraphs( $trans[2], $celex[1], $docid2 );
-                $docamount++;
+        # get celex code and load lang documents
+        if ( $line =~ /^[\s]*<div type=\"body\" n=\"([^\"]+)\"/ ) {
+            my $celexid = $1;
+            my $id = $celexid;
+            $id =~ s/\(/_/g;
+            $id =~ s/\)//g;
+            $id =~ s/\//\#/g;
+            my $lg1 = "";
+            my $lg2 = "";
+            if ( $line =~ /select=\"([a-z][a-z])\s+([a-z][a-z])\"/ ) {
+                $lg1 = $1;
+                $lg2 = $2;
             }
-            else {
-                die "wrong type for linkgrp $alignFile";
-            }
+            $docid1 = "jrc" . $id . "-" . $lg1;
+            $docid2 = "jrc" . $id . "-" . $lg2;
+            $text{ $trans[1] } = &loadParagraphs( $lg1, $celexid, $docid1 );
+            $text{ $trans[2] } = &loadParagraphs( $lg2, $celexid, $docid2 );
+            $docamount++;
         }
 
         # output lang files
-        if ( $line =~
-/^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/
-          )
+        if ( $line =~ /^[\s]*<link type=\"([^\"]+)\" xtargets=\"([^\";]+);([^\";]+)\"[\s]*\/>/)
         {
             my $type     = $1;
             my $targets1 = $2;
