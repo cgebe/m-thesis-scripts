@@ -59,11 +59,10 @@ foreach my $alignFile (@aligns) {
     my $Foutlg1;
     my $Foutlg2;
     my $docamount = 0;
-    my %testInfo = &loadTestInfo();
-    print Dumper(\$testInfo{jrc31970L0220});
+    my %testInfo = &loadTestInfo($trans[1], $trans[2]);
 
     # print state
-    print "writing JRC-Acquis " . $trans[1] . "-" . $trans[2] . "\n";
+    print "writing jrc_acquis " . $trans[1] . "-" . $trans[2] . "\n";
 
     # open out files
     open( $Foutlg1, ">:encoding(utf8)", $outFilelg1 )
@@ -75,6 +74,8 @@ foreach my $alignFile (@aligns) {
     open( my $fcelexList, "<:encoding(utf8)", $alignFile )
       || die "Problems opening file $alignFile: $!\n";
 
+    my $jrcid;
+    my $testsamples = 0;
     # iterate alignment file lines
     while ( my $line = <$fcelexList> ) {
         chomp $line;
@@ -99,6 +100,7 @@ foreach my $alignFile (@aligns) {
                 $lg1 = $1;
                 $lg2 = $2;
             }
+            $jrcid = "jrc" . $id;
             $docid1 = "jrc" . $id . "-" . $lg1;
             $docid2 = "jrc" . $id . "-" . $lg2;
             $text{ $trans[1] } = &loadParagraphs( $lg1, $celexid, $docid1 );
@@ -117,21 +119,54 @@ foreach my $alignFile (@aligns) {
             $targets2 =~ s/^[\s]+//;
             $targets2 =~ s/[\s]+$//;
 
-            print $Foutlg1 &getSentence( $trans[1], $targets1 ) . "\n";
-            print $Foutlg2 &getSentence( $trans[2], $targets2 ) . "\n";
+            if ($testInfo{$jrcid}) {
+                my $index1 = undef;
+                my $element1 = undef;
+                while (my ($index, $elem) = each $testInfo{$jrcid}->{$trans[1]}) {
+                    if ($targets1 eq $elem) {
+                        $index1 = $index;
+                        $element1 = $elem;
+                    }
+                }
+                my $index2 = undef;
+                my $element2 = undef;
+                while (my ($index, $elem) = each $testInfo{$jrcid}->{$trans[2]}) {
+                    if ($targets2 eq $elem) {
+                        $index2 = $index;
+                        $element2 = $elem;
+                    }
+                }
+
+                if (defined $index1 || defined $element1 || defined $index2 || defined $element2)
+                {
+                    $testsamples++;
+                    #print $targets1 . " " . $targets2 . "\n";
+                    #print $element1 . " " . $element2 . "\n";
+                }
+                else
+                {
+                    print $Foutlg1 &getSentence( $trans[1], $targets1 ) . "\n";
+                    print $Foutlg2 &getSentence( $trans[2], $targets2 ) . "\n";
+                }
+            }
+            else
+            {
+                print $Foutlg1 &getSentence( $trans[1], $targets1 ) . "\n";
+                print $Foutlg2 &getSentence( $trans[2], $targets2 ) . "\n";
+            }
         }
     }
-
     # close all files when one alignment file finished
     close($fcelexList);
     close($Foutlg1);
     close($Foutlg2);
-
+    print "test samples removed: " . $testsamples . "\n";
     print "documents aligned: " . $docamount . "\n";
 }
 
 sub loadTestInfo {
-    my %testInfo = {};
+    my ( $lg1, $lg2 ) = @_;
+    my %testInfo;
     my $testFile = "ac-test.info";
 
     open( my $F, "<:encoding(utf8)", $testFile ) || do{warn "No test file found, continue"; return();};
@@ -145,14 +180,16 @@ sub loadTestInfo {
         # init hack
         foreach my $sample (@samples) {
             my @spec = split( /:/, $sample); # 0: bg | 1: 5
-            if (!$testInfo{$docid}->{$spec[0]}) {
+            if (($lg1 eq $spec[0] || $lg2 eq $spec[0]) && !$testInfo{$docid}->{$spec[0]}) {
                 $testInfo{$docid}->{$spec[0]} = [];
             }
         }
 
         foreach my $sample (@samples) {
             my @spec = split( /:/, $sample); # 0: bg | 1: 5
-            push $testInfo{$docid}->{$spec[0]}, $spec[1];
+            if ($lg1 eq $spec[0] || $lg2 eq $spec[0]) {
+                push $testInfo{$docid}->{$spec[0]}, $spec[1];
+            }
         }
     }
     close $F;
