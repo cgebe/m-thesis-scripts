@@ -66,8 +66,8 @@ def serializeBisegment(huSens,enSens,quality=None,delimiter=" ~~~ ") :
     huText = delimiter.join(huSens)
     enText = delimiter.join(enSens)
     text = huText+"\t"+enText
-    if quality is not None :
-	text += "\t"+str(quality)
+    #if quality is not None :
+	#text += "\t"+str(quality)
     return text
 
 def isBisen(hole) :
@@ -160,7 +160,7 @@ def process(ladderFile, huFile, enFile, justBisen, delimiter, topoFilterLevel, l
     ladder = map( parseLadderLine, ladderLines )
     bisegments = ladderToBisegments(ladder, huSentences, enSentences, justBisen, topoFilterLevel, lengthFilterLevel, sentenceDetector)
     lines = [ serializeBisegment(huSens,enSens,quality,delimiter) for huSens,enSens,quality in bisegments ]
-    return "\n".join(lines)+"\n"
+    return lines
 
 
 def main() :
