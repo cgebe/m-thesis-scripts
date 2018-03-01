@@ -158,3 +158,5 @@ https://transfer.sh/JEaD6/europarl-v7.fr-sv.tar.gz
 https://transfer.sh/yfwNf/europarl-v7.fr-sv-test.tar.gz
 https://transfer.sh/h3CUa/europarl-v7.it-sv.tar.gz
 https://transfer.sh/10xMyv/europarl-v7.it-sv-test.tar.gz
+
+https://transfer.sh/JpYoC/wmt-test2008-europarl.tar.gz
